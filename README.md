@@ -32,3 +32,32 @@ The first script will download the presentation assets locally:
 The `presentation_url` should be a full URL containing the string
 `/playback/presentation/2.0/playback.html?meetingId=`.  This will
 download the presentation metadata, video footage and slides.
+
+
+## Create a GES project
+
+The second script combines the downloaded assets into a GStreamer
+Editing Services project.
+
+```
+./make-xges.py presentation_dir presentation.xges
+```
+
+The project can be previewed using the following command:
+
+```
+ges-launch-1.0 --load presentation.xges
+```
+
+Currently it incorporates the following aspects of the recording:
+
+* [x] Slides
+* [x] Screensharing video
+* [x] Webcam video+audio
+
+Not handled:
+
+* [ ] Mouse cursor
+* [ ] Whiteboard scribbles
+* [ ] Text chat
+
