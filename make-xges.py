@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import argparse
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -96,13 +97,16 @@ class Presentation:
 
 
 def main(argv):
-    if len(argv) != 3:
-        sys.stderr.write('usage: {} PRESENTATION-DIR PROJECT.xges\n'.format(argv[0]))
-        return 1
+    parser = argparse.ArgumentParser(description='convert a BigBlueButton presentation into a GES project')
+    parser.add_argument('basedir', metavar='PRESENTATION-DIR', type=str,
+                        help='directory containing BBB presentation assets')
+    parser.add_argument('project', metavar='OUTPUT', type=str,
+                        help='output filename for GES project')
+    args = parser.parse_args(argv[1:])
     Gst.init(None)
     GES.init()
-    p = Presentation(argv[1])
-    p.save(argv[2])
+    p = Presentation(args.basedir)
+    p.save(args.project)
 
 
 if __name__ == '__main__':
