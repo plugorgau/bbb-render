@@ -20,8 +20,9 @@ class Presentation:
 
     def __init__(self, opts):
         self.opts = opts
-        self.cam_width = round(self.opts.width * self.opts.webcam_size / 100)
-        self.slides_width = self.opts.width - self.cam_width
+        self.cam_width = round(opts.width * opts.webcam_size / 100)
+        self.slides_width = opts.width - self.cam_width
+        self.skip = round(opts.skip * Gst.SECOND)
 
         self.timeline = GES.Timeline.new_audio_video()
 
@@ -58,6 +59,17 @@ class Presentation:
 
     def _add_clip(self, layer, asset, start, inpoint, duration,
                   posx, posy, width, height):
+        # Skip clips entirely before the skip point
+        if start + duration < self.skip:
+            return
+        # Rewrite start, inpoint, and duration to account for time skip
+        start -= self.skip
+        if start < 0:
+            duration += start
+            if not asset.is_image():
+                inpoint += -start
+            start = 0
+
         clip = layer.add_asset(asset, start, inpoint, duration,
                                GES.TrackType.UNKNOWN)
         for element in clip.find_track_elements(
@@ -88,8 +100,8 @@ class Presentation:
             if path.endswith('/deskshare.png'):
                 continue
 
-            start = float(img.get('in')) * Gst.SECOND
-            end = float(img.get('out')) * Gst.SECOND
+            start = round(float(img.get('in')) * Gst.SECOND)
+            end = round(float(img.get('out')) * Gst.SECOND)
 
             asset = self._get_asset(os.path.join(self.opts.basedir, path))
             orig_width, orig_height = self._get_dimensions(asset)
@@ -106,8 +118,8 @@ class Presentation:
         duration = asset.props.duration
         doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
         for event in doc.iterfind('./event'):
-            start = float(event.get('start_timestamp')) * Gst.SECOND
-            end = float(event.get('stop_timestamp')) * Gst.SECOND
+            start = round(float(event.get('start_timestamp')) * Gst.SECOND)
+            end = round(float(event.get('stop_timestamp')) * Gst.SECOND)
             # Trim event to duration of video
             if start > duration: continue
             end = min(end, duration)
@@ -135,6 +147,8 @@ class Presentation:
 
 def main(argv):
     parser = argparse.ArgumentParser(description='convert a BigBlueButton presentation into a GES project')
+    parser.add_argument('--skip', metavar='SECONDS', type=float, default=0,
+                        help='Seconds to skip from the start of the recording')
     parser.add_argument('--width', metavar='WIDTH', type=int, default=1920,
                         help='Video width')
     parser.add_argument('--height', metavar='HEIGHT', type=int, default=1080,
