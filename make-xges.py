@@ -36,6 +36,7 @@ class Presentation:
         self.add_webcams()
         self.add_slides()
         self.add_deskshare()
+        self.add_backdrop()
 
     def _add_layer(self, name):
         layer = self.timeline.append_layer()
@@ -114,6 +115,19 @@ class Presentation:
             self._add_clip(layer, asset, start, start, end - start,
                            0, 0, self.slides_width, height)
 
+    def add_backdrop(self):
+        if not self.opts.backdrop:
+            return
+        # Get duration of webcam footage
+        webcams_asset = self._get_asset(
+            os.path.join(self.opts.basedir, 'video/webcams.webm'))
+        duration = webcams_asset.props.duration
+
+        layer = self._add_layer('Backdrop')
+        asset = self._get_asset(self.opts.backdrop)
+        self._add_clip(layer, asset, 0, 0, duration,
+                       0, 0, self.opts.width, self.opts.height)
+
     def save(self):
         self.project.save(
             self.timeline, file_to_uri(self.opts.project), None, True)
@@ -128,6 +142,8 @@ def main(argv):
     parser.add_argument('--webcam-size', metavar='PERCENT', type=int,
                         default=25, choices=range(100),
                         help='Amount of screen to reserve for camera')
+    parser.add_argument('--backdrop', metavar='FILE', type=str, default=None,
+                        help='Backdrop image for the project')
     parser.add_argument('basedir', metavar='PRESENTATION-DIR', type=str,
                         help='directory containing BBB presentation assets')
     parser.add_argument('project', metavar='OUTPUT', type=str,
