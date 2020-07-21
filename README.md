@@ -20,8 +20,8 @@ install at least the following:
 sudo apt install python3-gi gir1.2-ges-1.0 ges1.0-tools
 ```
 
-You may also want to install the Pitivi video editor to tweak the
-result before rendering:
+You may also want to install the [Pitivi video
+editor](http://www.pitivi.org/) to tweak the result before rendering:
 
 ```
 sudo apt install pitivi
@@ -49,24 +49,34 @@ Editing Services project.
 ./make-xges.py outdir presentation.xges
 ```
 
-In addition to being viewable in Pitivi, the project can be previewed
-using the following command:
+It takes the following optional parameters to influence the project:
 
-```
-ges-launch-1.0 --load presentation.xges
-```
+* `--width=WIDTH` and `--height=HEIGHT` control the dimensions of the video.  The default resolution is 1920x1080.
+* `--webcam-size=PERCENT` controls how much of the frame width will be devoted to the webcam footage.  This defaults to 20%.
+* `--backdrop=FILE` sets a still image to place behind other elements.  This can be used to fill in the empty space in the frame.
+* `--skip=SECONDS` allows you to skip ahead from the beginning of the recording.  This is useful if recording was started before the actual presentation.
 
-Currently it incorporates the following aspects of the recording:
+Currently the project includes the following aspects of the BBB
+recording:
 
 * [x] Slides
 * [x] Screensharing video
 * [x] Webcam video+audio
 
-Not handled:
+It does not cover:
 
 * [ ] Mouse cursor
 * [ ] Whiteboard scribbles
 * [ ] Text chat
+
+The project can be previewed using the `ges-launch-1.0` command line tool:
+
+```
+ges-launch-1.0 --load presentation.xges
+```
+
+It can also be loaded in Pitivi if you want to tweak the project
+before rendering.
 
 
 ## Render Video
@@ -79,7 +89,7 @@ ges-launch-1.0 --load presentation.xges -o presentation.mp4 \
   --format 'video/quicktime,variant=iso:video/x-h264,profile=high:audio/mpeg,mpegversion=4,base-profile=lc'
 ```
 
-Or alternatively, render as WebM:
+Or alternatively, it can be rendered as WebM:
 
 ```
 ges-launch-1.0 --load presentation.xges -o presentation.webm \
