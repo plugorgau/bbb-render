@@ -34,6 +34,7 @@ class Presentation:
         self._assets = {}
 
         # Construct the presentation
+        self.set_track_caps()
         self.add_webcams()
         self.add_slides()
         self.add_deskshare()
@@ -78,6 +79,25 @@ class Presentation:
             element.set_child_property("posy", posy)
             element.set_child_property("width", width)
             element.set_child_property("height", height)
+
+    def set_track_caps(self):
+        # Set frame rate and audio rate based on webcam capture
+        asset = self._get_asset(
+            os.path.join(self.opts.basedir, 'video/webcams.webm'))
+        info = asset.get_info()
+
+        video_info = info.get_video_streams()[0]
+        self.video_track.props.restriction_caps = Gst.Caps.from_string(
+            'video/x-raw(ANY), width=(int){}, height=(int){}, '
+            'framerate=(fraction){}/{}'.format(
+                self.opts.width, self.opts.height,
+                video_info.get_framerate_num(),
+                video_info.get_framerate_denom()))
+
+        audio_info = info.get_audio_streams()[0]
+        self.audio_track.props.restriction_caps = Gst.Caps.from_string(
+            'audio/x-raw(ANY), rate=(int){}, channels=(int){}'.format(
+                audio_info.get_sample_rate(), audio_info.get_channels()))
 
     def add_webcams(self):
         layer = self._add_layer('Camera')
