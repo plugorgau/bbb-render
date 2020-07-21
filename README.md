@@ -20,6 +20,12 @@ install at least the following:
 sudo apt install python3-gi gir1.2-ges-1.0 ges1.0-tools
 ```
 
+You may also want to install the Pitivi video editor to tweak the
+result before rendering:
+
+```
+sudo apt install pitivi
+```
 
 ## Downloading a presentation
 
@@ -40,10 +46,11 @@ The second script combines the downloaded assets into a GStreamer
 Editing Services project.
 
 ```
-./make-xges.py presentation_dir presentation.xges
+./make-xges.py outdir presentation.xges
 ```
 
-The project can be previewed using the following command:
+In addition to being viewable in Pitivi, the project can be previewed
+using the following command:
 
 ```
 ges-launch-1.0 --load presentation.xges
@@ -61,3 +68,20 @@ Not handled:
 * [ ] Whiteboard scribbles
 * [ ] Text chat
 
+
+## Render Video
+
+If everything looks good, the project can be rendered to a video.  The
+following should produce an mp4 file suitable for upload to YouTube:
+
+```
+ges-launch-1.0 --load presentation.xges -o presentation.mp4 \
+  --format 'video/quicktime,variant=iso:video/x-h264,profile=high:audio/mpeg,mpegversion=4,base-profile=lc'
+```
+
+Or alternatively, render as WebM:
+
+```
+ges-launch-1.0 --load presentation.xges -o presentation.webm \
+  --format 'video/webm:video/x-vp8:audio/x-vorbis'
+```
