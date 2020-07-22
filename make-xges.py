@@ -161,8 +161,8 @@ class Presentation:
                        0, 0, self.opts.width, self.opts.height)
 
     def save(self):
-        self.project.save(
-            self.timeline, file_to_uri(self.opts.project), None, True)
+        self.timeline.commit_sync()
+        self.timeline.save_to_uri(file_to_uri(self.opts.project), None, True)
 
 
 def main(argv):
