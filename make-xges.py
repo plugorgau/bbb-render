@@ -57,6 +57,14 @@ class Presentation:
         video_info = info.get_video_streams()[0]
         return (video_info.get_width(), video_info.get_height())
 
+    def _constrain(self, dimensions, bounds):
+        width, height = dimensions
+        max_width, max_height = bounds
+        new_height = round(height * max_width / width)
+        if new_height <= max_height:
+            return max_width, new_height
+        return round(width * max_height / height), max_height
+
     def _add_clip(self, layer, asset, start, inpoint, duration,
                   posx, posy, width, height):
         # Skip clips entirely after the end point
@@ -113,14 +121,12 @@ class Presentation:
 
         self.timeline = GES.Timeline.new_audio_video()
 
-
     def add_webcams(self):
         layer = self._add_layer('Camera')
         asset = self._get_asset(
             os.path.join(self.opts.basedir, 'video/webcams.webm'))
-        orig_width, orig_height = self._get_dimensions(asset)
-        width = self.cam_width
-        height = round(width / orig_width * orig_height)
+        width, height = self._constrain(self._get_dimensions(asset),
+                                        (self.cam_width, self.opts.height))
 
         self._add_clip(layer, asset, 0, 0, asset.props.duration,
                        self.opts.width - width, self.opts.height - height,
@@ -139,10 +145,11 @@ class Presentation:
             end = round(float(img.get('out')) * Gst.SECOND)
 
             asset = self._get_asset(os.path.join(self.opts.basedir, path))
-            orig_width, orig_height = self._get_dimensions(asset)
-            height = round(self.slides_width / orig_width * orig_height)
+            width, height = self._constrain(
+                self._get_dimensions(asset),
+                (self.slides_width, self.opts.height))
             self._add_clip(layer, asset, start, 0, end - start,
-                           0, 0, self.slides_width, height)
+                           0, 0, width, height)
 
     def add_deskshare(self):
         doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
@@ -153,8 +160,8 @@ class Presentation:
         layer = self._add_layer('Deskshare')
         asset = self._get_asset(
             os.path.join(self.opts.basedir, 'deskshare/deskshare.webm'))
-        orig_width, orig_height = self._get_dimensions(asset)
-        height = round(self.slides_width / orig_width * orig_height)
+        width, height = self._constrain(self._get_dimensions(asset),
+                                        (self.slides_width, self.opts.height))
         duration = asset.props.duration
         for event in events:
             start = round(float(event.get('start_timestamp')) * Gst.SECOND)
@@ -164,7 +171,7 @@ class Presentation:
             end = min(end, duration)
 
             self._add_clip(layer, asset, start, start, end - start,
-                           0, 0, self.slides_width, height)
+                           0, 0, width, height)
 
     def add_backdrop(self):
         if not self.opts.backdrop:
