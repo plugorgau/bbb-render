@@ -22,10 +22,6 @@ class Presentation:
         self.opts = opts
         self.cam_width = round(opts.width * opts.webcam_size / 100)
         self.slides_width = opts.width - self.cam_width
-        self.start_time = round(opts.start * Gst.SECOND)
-        self.end_time = None
-        if opts.end is not None:
-            self.end_time = round(opts.end * Gst.SECOND)
 
         self.timeline = GES.Timeline.new_audio_video()
 
@@ -63,12 +59,11 @@ class Presentation:
 
     def _add_clip(self, layer, asset, start, inpoint, duration,
                   posx, posy, width, height):
-        if self.end_time is not None:
-            # Skip clips entirely after the end point
-            if start > self.end_time:
-                return
-            # Truncate clips that go past the end point
-            duration = min(duration, self.end_time - start)
+        # Skip clips entirely after the end point
+        if start > self.end_time:
+            return
+        # Truncate clips that go past the end point
+        duration = min(duration, self.end_time - start)
 
         # Skip clips entirely before the start point
         if start + duration < self.start_time:
@@ -109,6 +104,16 @@ class Presentation:
             'audio/x-raw(ANY), rate=(int){}, channels=(int){}'.format(
                 audio_info.get_sample_rate(), audio_info.get_channels()))
 
+        # Set start and end time from options
+        self.start_time = round(self.opts.start * Gst.SECOND)
+        if self.opts.end is None:
+            self.end_time = asset.props.duration
+        else:
+            self.end_time = round(self.opts.end * Gst.SECOND)
+
+        self.timeline = GES.Timeline.new_audio_video()
+
+
     def add_webcams(self):
         layer = self._add_layer('Camera')
         asset = self._get_asset(
@@ -140,14 +145,18 @@ class Presentation:
                            0, 0, self.slides_width, height)
 
     def add_deskshare(self):
+        doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
+        events = doc.findall('./event')
+        if len(events) == 0:
+            return
+
         layer = self._add_layer('Deskshare')
         asset = self._get_asset(
             os.path.join(self.opts.basedir, 'deskshare/deskshare.webm'))
         orig_width, orig_height = self._get_dimensions(asset)
         height = round(self.slides_width / orig_width * orig_height)
         duration = asset.props.duration
-        doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
-        for event in doc.iterfind('./event'):
+        for event in events:
             start = round(float(event.get('start_timestamp')) * Gst.SECOND)
             end = round(float(event.get('stop_timestamp')) * Gst.SECOND)
             # Trim event to duration of video
