@@ -144,6 +144,10 @@ class Presentation:
             start = round(float(img.get('in')) * Gst.SECOND)
             end = round(float(img.get('out')) * Gst.SECOND)
 
+            # Don't bother creating an asset for out of range slides
+            if end < self.start_time or start > self.end_time:
+                continue
+
             asset = self._get_asset(os.path.join(self.opts.basedir, path))
             width, height = self._constrain(
                 self._get_dimensions(asset),
