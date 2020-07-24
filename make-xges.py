@@ -22,7 +22,10 @@ class Presentation:
         self.opts = opts
         self.cam_width = round(opts.width * opts.webcam_size / 100)
         self.slides_width = opts.width - self.cam_width
-        self.skip = round(opts.skip * Gst.SECOND)
+        self.start_time = round(opts.start * Gst.SECOND)
+        self.end_time = None
+        if opts.end is not None:
+            self.end_time = round(opts.end * Gst.SECOND)
 
         self.timeline = GES.Timeline.new_audio_video()
 
@@ -60,11 +63,18 @@ class Presentation:
 
     def _add_clip(self, layer, asset, start, inpoint, duration,
                   posx, posy, width, height):
-        # Skip clips entirely before the skip point
-        if start + duration < self.skip:
+        if self.end_time is not None:
+            # Skip clips entirely after the end point
+            if start > self.end_time:
+                return
+            # Truncate clips that go past the end point
+            duration = min(duration, self.end_time - start)
+
+        # Skip clips entirely before the start point
+        if start + duration < self.start_time:
             return
         # Rewrite start, inpoint, and duration to account for time skip
-        start -= self.skip
+        start -= self.start_time
         if start < 0:
             duration += start
             if not asset.is_image():
@@ -114,7 +124,7 @@ class Presentation:
     def add_slides(self):
         layer = self._add_layer('Slides')
         doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
-        for img in doc.iterfind('.//{http://www.w3.org/2000/svg}image'):
+        for img in doc.iterfind('./{http://www.w3.org/2000/svg}image'):
             path = img.get('{http://www.w3.org/1999/xlink}href')
             # If this is a "deskshare" slide, don't show anything
             if path.endswith('/deskshare.png'):
@@ -167,8 +177,10 @@ class Presentation:
 
 def main(argv):
     parser = argparse.ArgumentParser(description='convert a BigBlueButton presentation into a GES project')
-    parser.add_argument('--skip', metavar='SECONDS', type=float, default=0,
+    parser.add_argument('--start', metavar='SECONDS', type=float, default=0,
                         help='Seconds to skip from the start of the recording')
+    parser.add_argument('--end', metavar='SECONDS', type=float, default=None,
+                        help='End point in the recording')
     parser.add_argument('--width', metavar='WIDTH', type=int, default=1920,
                         help='Video width')
     parser.add_argument('--height', metavar='HEIGHT', type=int, default=1080,
