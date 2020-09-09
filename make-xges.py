@@ -125,11 +125,14 @@ class Presentation:
         layer = self._add_layer('Camera')
         asset = self._get_asset(
             os.path.join(self.opts.basedir, 'video/webcams.webm'))
-        width, height = self._constrain(self._get_dimensions(asset),
-                                        (self.cam_width, self.opts.height))
+        dims = self._get_dimensions(asset)
+        if self.opts.stretch_webcam:
+            dims = (dims[0] * 16/12, dims[1])
+        width, height = self._constrain(
+            dims, (self.cam_width, self.opts.height))
 
         self._add_clip(layer, asset, 0, 0, asset.props.duration,
-                       self.opts.width - width, self.opts.height - height,
+                       self.opts.width - width, 0,
                        width, height)
 
     def add_slides(self):
@@ -208,6 +211,8 @@ def main(argv):
     parser.add_argument('--webcam-size', metavar='PERCENT', type=int,
                         default=25, choices=range(100),
                         help='Amount of screen to reserve for camera')
+    parser.add_argument('--stretch-webcam', action='store_true',
+                        help='Stretch webcam to 16:9 aspect ratio')
     parser.add_argument('--backdrop', metavar='FILE', type=str, default=None,
                         help='Backdrop image for the project')
     parser.add_argument('basedir', metavar='PRESENTATION-DIR', type=str,
