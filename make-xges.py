@@ -7,8 +7,9 @@ import xml.etree.ElementTree as ET
 
 import gi
 gi.require_version('Gst', '1.0')
+gi.require_version('GstPbutils', '1.0')
 gi.require_version('GES', '1.0')
-from gi.repository import GLib, GObject, Gst, GES
+from gi.repository import GLib, GObject, Gst, GstPbutils, GES
 
 
 def file_to_uri(path):
@@ -119,7 +120,17 @@ class Presentation:
         else:
             self.end_time = round(self.opts.end * Gst.SECOND)
 
-        self.timeline = GES.Timeline.new_audio_video()
+        # Add an encoding profile for the benefit of Pitivi
+        profile = GstPbutils.EncodingContainerProfile.new(
+            'bbb-render', 'bbb-render encoding profile',
+            Gst.Caps.from_string('video/quicktime, variant=(string)iso'))
+        profile.add_profile(GstPbutils.EncodingVideoProfile.new(
+            Gst.Caps.from_string('video/x-h264,profile=high'), None,
+            self.video_track.props.restriction_caps, 0))
+        profile.add_profile(GstPbutils.EncodingAudioProfile.new(
+            Gst.Caps.from_string('audio/mpeg,mpegversion=4,base-profile=lc'),
+            None, self.audio_track.props.restriction_caps, 0))
+        self.project.add_encoding_profile(profile)
 
     def add_webcams(self):
         layer = self._add_layer('Camera')
