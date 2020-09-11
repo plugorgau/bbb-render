@@ -82,11 +82,10 @@ before rendering.
 ## Render Video
 
 If everything looks good, the project can be rendered to a video.  The
-following should produce an mp4 file suitable for upload to YouTube:
+following should produce an MP4 file suitable for upload to YouTube:
 
 ```
-ges-launch-1.0 --load presentation.xges -o presentation.mp4 \
-  --format 'video/quicktime,variant=iso:video/x-h264,profile=high:audio/mpeg,mpegversion=4,base-profile=lc'
+ges-launch-1.0 --load presentation.xges -o presentation.mp4
 ```
 
 Or alternatively, it can be rendered as WebM:

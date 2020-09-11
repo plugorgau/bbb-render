@@ -122,7 +122,7 @@ class Presentation:
 
         # Add an encoding profile for the benefit of Pitivi
         profile = GstPbutils.EncodingContainerProfile.new(
-            'bbb-render', 'bbb-render encoding profile',
+            'MP4', 'bbb-render encoding profile',
             Gst.Caps.from_string('video/quicktime, variant=(string)iso'))
         profile.add_profile(GstPbutils.EncodingVideoProfile.new(
             Gst.Caps.from_string('video/x-h264,profile=high'), None,
