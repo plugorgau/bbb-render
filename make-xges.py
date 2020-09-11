@@ -35,6 +35,7 @@ class Presentation:
 
         # Construct the presentation
         self.set_track_caps()
+        self.set_project_metadata()
         self.add_webcams()
         self.add_slides()
         self.add_deskshare()
@@ -123,7 +124,7 @@ class Presentation:
         # Add an encoding profile for the benefit of Pitivi
         profile = GstPbutils.EncodingContainerProfile.new(
             'MP4', 'bbb-render encoding profile',
-            Gst.Caps.from_string('video/quicktime, variant=(string)iso'))
+            Gst.Caps.from_string('video/quicktime,variant=iso'))
         profile.add_profile(GstPbutils.EncodingVideoProfile.new(
             Gst.Caps.from_string('video/x-h264,profile=high'), None,
             self.video_track.props.restriction_caps, 0))
@@ -131,6 +132,12 @@ class Presentation:
             Gst.Caps.from_string('audio/mpeg,mpegversion=4,base-profile=lc'),
             None, self.audio_track.props.restriction_caps, 0))
         self.project.add_encoding_profile(profile)
+
+    def set_project_metadata(self):
+        doc = ET.parse(os.path.join(self.opts.basedir, 'metadata.xml'))
+        name = doc.find('./meta/name')
+        self.project.register_meta_string(
+            GES.MetaFlag.READWRITE, 'name', name.text.strip())
 
     def add_webcams(self):
         layer = self._add_layer('Camera')
