@@ -136,8 +136,9 @@ class Presentation:
     def set_project_metadata(self):
         doc = ET.parse(os.path.join(self.opts.basedir, 'metadata.xml'))
         name = doc.find('./meta/name')
-        self.project.register_meta_string(
-            GES.MetaFlag.READWRITE, 'name', name.text.strip())
+        if name is not None:
+            self.project.register_meta_string(
+                GES.MetaFlag.READWRITE, 'name', name.text.strip())
 
     def add_webcams(self):
         layer = self._add_layer('Camera')
