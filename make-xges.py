@@ -36,10 +36,12 @@ class Presentation:
         # Construct the presentation
         self.set_track_caps()
         self.set_project_metadata()
+        self.add_credits_start()
         self.add_webcams()
         self.add_slides()
         self.add_deskshare()
         self.add_backdrop()
+        self.add_credits_end()
 
     def _add_layer(self, name):
         layer = self.timeline.append_layer()
@@ -86,7 +88,7 @@ class Presentation:
                 inpoint += -start
             start = 0
 
-        clip = layer.add_asset(asset, start, inpoint, duration,
+        clip = layer.add_asset(asset, self.credits_len + start, inpoint, duration,
                                GES.TrackType.UNKNOWN)
         for element in clip.find_track_elements(
                 self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
@@ -212,6 +214,51 @@ class Presentation:
         self._add_clip(layer, asset, 0, 0, duration,
                        0, 0, self.opts.width, self.opts.height)
 
+
+    def add_credits_start(self):
+        self.credits_len = 0
+        if not self.opts.prepend_file:
+            return
+
+        self.credits_len = len(self.opts.prepend_file) * 3 * Gst.SECOND
+
+        layer = self._add_layer('credits')
+        for idx, f in enumerate(self.opts.prepend_file):
+            asset = self._get_asset(f.name)
+
+            start = idx * 3 * Gst.SECOND
+
+            clip = layer.add_asset(asset, start, 0, 3 * Gst.SECOND, GES.TrackType.UNKNOWN)
+            for element in clip.find_track_elements(
+                self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
+                element.set_child_property("posx", 0)
+                element.set_child_property("posy", 0)
+                element.set_child_property("width", self.opts.width)
+                element.set_child_property("height", self.opts.height)
+
+
+    def add_credits_end(self):
+        if not self.opts.append_file:
+            return
+
+        duration = self.end_time - self.start_time
+
+
+        layer = self._add_layer('credits')
+        for idx, f in enumerate(self.opts.append_file):
+            asset = self._get_asset(f.name)
+
+            start = self.credits_len + duration + idx * 3 * Gst.SECOND
+
+            clip = layer.add_asset(asset, start, 0, 3 * Gst.SECOND, GES.TrackType.UNKNOWN)
+            for element in clip.find_track_elements(
+                self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
+                element.set_child_property("posx", 0)
+                element.set_child_property("posy", 0)
+                element.set_child_property("width", self.opts.width)
+                element.set_child_property("height", self.opts.height)
+
+
     def save(self):
         self.timeline.commit_sync()
         self.timeline.save_to_uri(file_to_uri(self.opts.project), None, True)
@@ -234,6 +281,8 @@ def main(argv):
                         help='Stretch webcam to 16:9 aspect ratio')
     parser.add_argument('--backdrop', metavar='FILE', type=str, default=None,
                         help='Backdrop image for the project')
+    parser.add_argument('--prepend-file', type=argparse.FileType('r'), nargs='+')
+    parser.add_argument('--append-file', type=argparse.FileType('r'), nargs='+')
     parser.add_argument('basedir', metavar='PRESENTATION-DIR', type=str,
                         help='directory containing BBB presentation assets')
     parser.add_argument('project', metavar='OUTPUT', type=str,
