@@ -36,12 +36,11 @@ class Presentation:
         # Construct the presentation
         self.set_track_caps()
         self.set_project_metadata()
-        self.add_credits_start()
+        self.add_credits()
         self.add_webcams()
         self.add_slides()
         self.add_deskshare()
         self.add_backdrop()
-        self.add_credits_end()
 
     def _add_layer(self, name):
         layer = self.timeline.append_layer()
@@ -70,12 +69,13 @@ class Presentation:
         return round(width * max_height / height), max_height
 
     def _add_clip(self, layer, asset, start, inpoint, duration,
-                  posx, posy, width, height):
-        # Skip clips entirely after the end point
-        if start > self.end_time:
-            return
-        # Truncate clips that go past the end point
-        duration = min(duration, self.end_time - start)
+                  posx, posy, width, height, trim_end=True):
+        if trim_end:
+            # Skip clips entirely after the end point
+            if start > self.end_time:
+                return
+            # Truncate clips that go past the end point
+            duration = min(duration, self.end_time - start)
 
         # Skip clips entirely before the start point
         if start + duration < self.start_time:
@@ -88,7 +88,10 @@ class Presentation:
                 inpoint += -start
             start = 0
 
-        clip = layer.add_asset(asset, self.credits_len + start, inpoint, duration,
+        # Offset start point by the length of the opening credits
+        start += self.opening_length
+
+        clip = layer.add_asset(asset, start, inpoint, duration,
                                GES.TrackType.UNKNOWN)
         for element in clip.find_track_elements(
                 self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
@@ -122,6 +125,9 @@ class Presentation:
             self.end_time = asset.props.duration
         else:
             self.end_time = round(self.opts.end * Gst.SECOND)
+
+        # Offset for the opening credits
+        self.opening_length = 0
 
         # Add an encoding profile for the benefit of Pitivi
         profile = GstPbutils.EncodingContainerProfile.new(
@@ -204,60 +210,62 @@ class Presentation:
     def add_backdrop(self):
         if not self.opts.backdrop:
             return
-        # Get duration of webcam footage
-        webcams_asset = self._get_asset(
-            os.path.join(self.opts.basedir, 'video/webcams.webm'))
-        duration = webcams_asset.props.duration
-
         layer = self._add_layer('Backdrop')
         asset = self._get_asset(self.opts.backdrop)
-        self._add_clip(layer, asset, 0, 0, duration,
+        self._add_clip(layer, asset, 0, 0, self.end_time,
                        0, 0, self.opts.width, self.opts.height)
 
-
-    def add_credits_start(self):
-        self.credits_len = 0
-        if not self.opts.prepend_file:
+    def add_credits(self):
+        if not (self.opts.opening_credits or self.opts.closing_credits):
             return
 
-        self.credits_len = len(self.opts.prepend_file) * 3 * Gst.SECOND
-
         layer = self._add_layer('credits')
-        for idx, f in enumerate(self.opts.prepend_file):
-            asset = self._get_asset(f.name)
+        for fname in self.opts.opening_credits:
+            duration = None
+            if ':' in fname:
+                fname, duration = fname.rsplit(':', 1)
+                duration = round(float(duration) * Gst.SECOND)
 
-            start = idx * 3 * Gst.SECOND
+            asset = self._get_asset(fname)
+            if duration is None:
+                if asset.is_image():
+                    duration = 3 * Gst.SECOND
+                else:
+                    duration = asset.props.duration
 
-            clip = layer.add_asset(asset, start, 0, 3 * Gst.SECOND, GES.TrackType.UNKNOWN)
-            for element in clip.find_track_elements(
-                self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
-                element.set_child_property("posx", 0)
-                element.set_child_property("posy", 0)
-                element.set_child_property("width", self.opts.width)
-                element.set_child_property("height", self.opts.height)
+                    dims = self._get_dimensions(asset)
 
+            dims = self._get_dimensions(asset)
+            width, height = self._constrain(
+                dims, (self.opts.width, self.opts.height))
 
-    def add_credits_end(self):
-        if not self.opts.append_file:
-            return
+            self._add_clip(layer, asset, 0, 0, duration,
+                           0, 0, width, height, trim_end=False)
+            self.opening_length += duration
 
-        duration = self.end_time - self.start_time
+        closing_length = 0
+        for fname in self.opts.closing_credits:
+            duration = None
+            if ':' in fname:
+                fname, duration = fname.rsplit(':', 1)
+                duration = round(float(duration) * Gst.SECOND)
 
+            asset = self._get_asset(fname)
+            if duration is None:
+                if asset.is_image():
+                    duration = 3 * Gst.SECOND
+                else:
+                    duration = asset.props.duration
 
-        layer = self._add_layer('credits')
-        for idx, f in enumerate(self.opts.append_file):
-            asset = self._get_asset(f.name)
+                    dims = self._get_dimensions(asset)
 
-            start = self.credits_len + duration + idx * 3 * Gst.SECOND
+            dims = self._get_dimensions(asset)
+            width, height = self._constrain(
+                dims, (self.opts.width, self.opts.height))
 
-            clip = layer.add_asset(asset, start, 0, 3 * Gst.SECOND, GES.TrackType.UNKNOWN)
-            for element in clip.find_track_elements(
-                self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
-                element.set_child_property("posx", 0)
-                element.set_child_property("posy", 0)
-                element.set_child_property("width", self.opts.width)
-                element.set_child_property("height", self.opts.height)
-
+            self._add_clip(layer, asset, self.end_time + closing_length, 0,
+                           duration, 0, 0, width, height, trim_end=False)
+            closing_length += duration
 
     def save(self):
         self.timeline.commit_sync()
@@ -281,8 +289,12 @@ def main(argv):
                         help='Stretch webcam to 16:9 aspect ratio')
     parser.add_argument('--backdrop', metavar='FILE', type=str, default=None,
                         help='Backdrop image for the project')
-    parser.add_argument('--prepend-file', type=argparse.FileType('r'), nargs='+')
-    parser.add_argument('--append-file', type=argparse.FileType('r'), nargs='+')
+    parser.add_argument('--opening-credits', metavar='FILE[:DURATION]',
+                        type=str, action='append', default=[],
+                        help='File to use as opening credits (may be repeated)')
+    parser.add_argument('--closing-credits', metavar='FILE[:DURATION]',
+                        type=str, action='append', default=[],
+                        help='File to use as closing credits (may be repeated)')
     parser.add_argument('basedir', metavar='PRESENTATION-DIR', type=str,
                         help='directory containing BBB presentation assets')
     parser.add_argument('project', metavar='OUTPUT', type=str,
