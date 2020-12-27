@@ -51,10 +51,12 @@ Editing Services project.
 
 It takes the following optional parameters to influence the project:
 
+* `--start=SECONDS` and `--end=SECONDS` can be used to trim footage from the start or end of the recording.  This can be helpful if the recording was started early, or you want to split the recoridng into multiple projects.
 * `--width=WIDTH` and `--height=HEIGHT` control the dimensions of the video.  The default resolution is 1920x1080.
 * `--webcam-size=PERCENT` controls how much of the frame width will be devoted to the webcam footage.  This defaults to 20%.
+* `--stretch-webcam` stretches the webcam footage by 33%.  This was added to correct the camera aspect ratio in some of our recordings.
 * `--backdrop=FILE` sets a still image to place behind other elements.  This can be used to fill in the empty space in the frame.
-* `--skip=SECONDS` allows you to skip ahead from the beginning of the recording.  This is useful if recording was started before the actual presentation.
+* `--opening-credits=FILE[:DURATION]` and `--closing-credits=FILE[:DURATION]` will add credits to project.  These can either be videos or still images (which will default to 3 seconds duration).  These options can be repeated to add multiple credits.
 
 Currently the project includes the following aspects of the BBB
 recording:
