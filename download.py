@@ -12,8 +12,14 @@ class Downloader:
 
     def __init__(self, url, outdir):
         m = re.match(r'^.*/playback/presentation/2\.0/playback.html\?meetingId=(\S+)$', url)
-        if m is None:
-            raise ValueError(f"Does not look like a BBB playback URL: {url}")
+        if m is not None:
+            id = m.group(1)
+        else:
+            m = re.match(r'.*/playback/presentation/2.3/(\S+)$', url)
+            if m is not None:
+                id = m.group(1)
+            else:
+                raise ValueError(f"Does not look like a BBB playback URL: {url}")
 
         id = m.group(1)
         self.base_url = urllib.parse.urljoin(url, f"/presentation/{id}/")
