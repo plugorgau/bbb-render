@@ -39,6 +39,7 @@ class Presentation:
         self.add_credits()
         self.add_webcams()
         self.add_slides()
+        self.add_cursor()
         self.add_deskshare()
         self.add_backdrop()
 
@@ -184,6 +185,36 @@ class Presentation:
                 (self.slides_width, self.opts.height))
             self._add_clip(layer, asset, start, 0, end - start,
                            0, 0, width, height)
+
+    def add_cursor(self):
+        layer = self._add_layer('Cursor')
+        doc = ET.parse(os.path.join(self.opts.basedir, 'cursor.xml'))
+        root = doc.getroot()
+        events = []
+        dot = self._get_asset('dot.png')
+        
+        
+        for key, event in enumerate(root):
+            
+            e={}
+            e['coords'] = event[0].text.split(' ')
+            e['timestamp'] = round(float(event.attrib['timestamp'])* Gst.SECOND)
+            
+            if len(root) > (key + 1):
+                
+                e['duration'] = round(float(root[key + 1].attrib['timestamp'])* Gst.SECOND) - e['timestamp']
+                
+            else:
+                e['duration'] = 1
+            
+            events.append(e)
+        
+        for key, event in enumerate(events):
+            
+            if float(event['coords'][0]) != -1 and float(event['coords'][1]) != -1:
+            
+                self._add_clip(layer, dot, event['timestamp'], 0, event["duration"], self.slides_width*float(event['coords'][0]), 1080*float(event['coords'][1]), 10, 10)
+
 
     def add_deskshare(self):
         doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
