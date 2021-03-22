@@ -5,12 +5,16 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 
+import cairosvg
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 gi.require_version('GES', '1.0')
 from gi.repository import GLib, GObject, Gst, GstPbutils, GES
 
+from intervaltree import Interval, IntervalTree
+
+ET.register_namespace("", "http://www.w3.org/2000/svg")
 
 def file_to_uri(path):
     path = os.path.realpath(path)
@@ -39,7 +43,10 @@ class Presentation:
         self.add_credits()
         self.add_webcams()
         self.add_cursor()
-        self.add_slides()
+        if self.opts.annotations:
+            self.add_slides_with_annotations()
+        else:
+            self.add_slides()
         self.add_deskshare()
         self.add_backdrop()
 
@@ -232,6 +239,102 @@ class Presentation:
                            round(width*x - dot_width/2),
                            round(height*y - dot_height/2), dot_width, dot_height)
 
+    def add_slides_with_annotations(self):
+
+        def data_reducer(a, b):
+            return a+b
+
+        layer = self._add_layer('Slides')
+
+        slides = {}
+        doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
+        s = doc.getroot()
+
+        for img in doc.iterfind('./{http://www.w3.org/2000/svg}image'):
+            path = img.get('{http://www.w3.org/1999/xlink}href')
+            img.set('{http://www.w3.org/1999/xlink}href', os.path.join(self.opts.basedir, path))
+            if path.endswith('/deskshare.png'):
+                continue
+
+            img_width = int(img.get('width'))
+            img_height = int(img.get('height'))
+
+            canvas = doc.find('./{{http://www.w3.org/2000/svg}}g[@class="canvas"][@image="{}"]'.format(img.get('id')))
+
+            img_start = round(float(img.get('in')) * Gst.SECOND)
+            img_end = round(float(img.get('out')) * Gst.SECOND)
+
+            t = IntervalTree()
+            t.add(Interval(begin=img_start, end=img_end, data=[]))
+
+            if canvas is None:
+                svg = ET.XML(
+                    '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}"></svg>'.format(img_width,
+                                                                                                              img_height))
+                svg.append(img)
+
+                pngpath = os.path.join(self.opts.basedir, '{}.png'.format(img.get('id')))
+
+                if not os.path.exists(pngpath):
+                    cairosvg.svg2png(bytestring=ET.tostring(svg).decode('utf-8').encode('utf-8'), write_to=pngpath,
+                                     output_width=img_width, output_height=img_height)
+
+                asset = self._get_asset(pngpath)
+                width, height = self._constrain(
+                    self._get_dimensions(asset),
+                    (self.slides_width, self.opts.height))
+                self._add_clip(layer, asset, img_start, 0, img_end - img_start,
+                               0, 0, width, height)
+
+            else:
+                for shape in canvas.iterfind('./{http://www.w3.org/2000/svg}g[@class="shape"]'):
+
+                    for shape_img in shape.iterfind('./{http://www.w3.org/2000/svg}image'):
+                        print(ET.tostring(shape_img))
+                        shape_img_path = shape_img.get('{http://www.w3.org/1999/xlink}href')
+                        shape_img.set('{http://www.w3.org/1999/xlink}href', os.path.join(self.opts.basedir, shape_img_path))
+
+                    start = img_start
+                    timestamp = shape.get('timestamp')
+                    shape_start = round(float(timestamp) * Gst.SECOND)
+                    if shape_start > img_start:
+                        start = shape_start
+
+                    end = img_end
+                    undo = shape.get('undo')
+                    shape_end = round(float(undo) * Gst.SECOND)
+                    if undo != '-1' and shape_end != 0 and shape_end < end:
+                        end = shape_end
+
+                    if end < start:
+                        continue
+
+                    t.add(Interval(begin=start, end=end, data=[shape]))
+
+                t.split_overlaps()
+                t.merge_overlaps(data_reducer=data_reducer)
+                for index, interval in enumerate(sorted(t)):
+                    svg = ET.XML(
+                        '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}"></svg>'.format(img_width,
+                                                                                                                  img_height))
+                    svg.append(img)
+                    for d in interval.data:
+                        svg.append(d)
+
+                    pngpath = os.path.join(self.opts.basedir, '{}-{}.png'.format(img.get('id'), index))
+
+                    if not os.path.exists(pngpath):
+                        cairosvg.svg2png(bytestring=ET.tostring(svg).decode('utf-8').encode('utf-8'), write_to=pngpath,
+                                         output_width=img_width, output_height=img_height)
+
+                    asset = self._get_asset(pngpath)
+                    width, height = self._constrain(
+                        self._get_dimensions(asset),
+                        (self.slides_width, self.opts.height))
+                    self._add_clip(layer, asset, interval.begin, 0, interval.end - interval.begin,
+                                   0, 0, width, height)
+
+
     def add_deskshare(self):
         doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
         events = doc.findall('./event')
@@ -342,6 +445,8 @@ def main(argv):
     parser.add_argument('--closing-credits', metavar='FILE[:DURATION]',
                         type=str, action='append', default=[],
                         help='File to use as closing credits (may be repeated)')
+    parser.add_argument('--annotations', action='store_true', default=False,
+                        help='Add annotations to slides (requires inkscape)')
     parser.add_argument('basedir', metavar='PRESENTATION-DIR', type=str,
                         help='directory containing BBB presentation assets')
     parser.add_argument('project', metavar='OUTPUT', type=str,
