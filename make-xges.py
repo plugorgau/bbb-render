@@ -246,9 +246,7 @@ class Presentation:
 
         layer = self._add_layer('Slides')
 
-        slides = {}
         doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
-        s = doc.getroot()
 
         for img in doc.iterfind('./{http://www.w3.org/2000/svg}image'):
             path = img.get('{http://www.w3.org/1999/xlink}href')
@@ -287,7 +285,11 @@ class Presentation:
                                0, 0, width, height)
 
             else:
+                shapes = {}
                 for shape in canvas.iterfind('./{http://www.w3.org/2000/svg}g[@class="shape"]'):
+
+                    shape_style = shape.get('style')
+                    shape.set('style', shape_style.replace('visibility:hidden;', ''))
 
                     for shape_img in shape.iterfind('./{http://www.w3.org/2000/svg}image'):
                         print(ET.tostring(shape_img))
@@ -309,7 +311,28 @@ class Presentation:
                     if end < start:
                         continue
 
-                    t.add(Interval(begin=start, end=end, data=[shape]))
+                    shape_id = shape.get('shape')
+                    if shape_id in shapes:
+                        shapes[shape_id].append({
+                            'start': start,
+                            'end': end,
+                            'shape': shape
+                        })
+                    else:
+                        shapes[shape_id] = [{
+                            'start': start,
+                            'end': end,
+                            'shape': shape
+                        }]
+
+                for shape_id, shapes_list in shapes.items():
+                    sorted_shapes = sorted(shapes_list, key=lambda k: k['start'])
+                    index = 1
+                    for s in sorted_shapes:
+                        if index < len(shapes_list):
+                            s['end'] = sorted_shapes[index]['start']
+                        t.add(Interval(begin=s['start'], end=s['end'], data=[s['shape']]))
+                        index += 1
 
                 t.split_overlaps()
                 t.merge_overlaps(data_reducer=data_reducer)
