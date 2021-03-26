@@ -38,8 +38,8 @@ class Presentation:
         self.set_project_metadata()
         self.add_credits()
         self.add_webcams()
-        self.add_slides()
         self.add_cursor()
+        self.add_slides()
         self.add_deskshare()
         self.add_backdrop()
 
