@@ -189,31 +189,31 @@ class Presentation:
     def add_cursor(self):
         layer = self._add_layer('Cursor')
         doc = ET.parse(os.path.join(self.opts.basedir, 'cursor.xml'))
-        root = doc.getroot()
-        events = []
         dot = self._get_asset('dot.png')
-        
-        
-        for key, event in enumerate(root):
-            
-            e={}
-            e['coords'] = event[0].text.split(' ')
-            e['timestamp'] = round(float(event.attrib['timestamp'])* Gst.SECOND)
-            
-            if len(root) > (key + 1):
-                
-                e['duration'] = round(float(root[key + 1].attrib['timestamp'])* Gst.SECOND) - e['timestamp']
-                
+        dot_width, dot_height = self._get_dimensions(dot)
+
+        events = []
+        for event in doc.iterfind('./event'):
+            x, y = event.find('./cursor').text.split()
+            timestamp = round(float(event.attrib['timestamp']) * Gst.SECOND)
+            events.append((float(x), float(y), timestamp))
+
+        for i, (x, y, start) in enumerate(events):
+            # negative positions are used to indicate that no cursor
+            # should be displayed.
+            if x < 0 and y < 0:
+                continue
+
+            # Show cursor until next event or if it is the last event,
+            # the end of recording.
+            if i + 1 < len(events):
+                end = events[i + 1][2]
             else:
-                e['duration'] = 1
-            
-            events.append(e)
-        
-        for key, event in enumerate(events):
-            
-            if float(event['coords'][0]) != -1 and float(event['coords'][1]) != -1:
-            
-                self._add_clip(layer, dot, event['timestamp'], 0, event["duration"], self.slides_width*float(event['coords'][0]), 1080*float(event['coords'][1]), 10, 10)
+                end = self.end_time
+
+            self._add_clip(layer, dot, start, 0, end - start,
+                           round(self.slides_width*x - dot_width/2),
+                           round(1080*.75*y - dot_height/2), dot_width, dot_height)
 
 
     def add_deskshare(self):
