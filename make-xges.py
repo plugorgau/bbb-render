@@ -38,6 +38,7 @@ class Presentation:
         self.set_project_metadata()
         self.add_credits()
         self.add_webcams()
+        self.add_cursor()
         self.add_slides()
         self.add_deskshare()
         self.add_backdrop()
@@ -184,6 +185,52 @@ class Presentation:
                 (self.slides_width, self.opts.height))
             self._add_clip(layer, asset, start, 0, end - start,
                            0, 0, width, height)
+
+    def add_cursor(self):
+        layer = self._add_layer('Cursor')
+        dot = self._get_asset('dot.png')
+        dot_width, dot_height = self._get_dimensions(dot)
+
+        doc = ET.parse(os.path.join(self.opts.basedir, 'cursor.xml'))
+        events = []
+        for event in doc.iterfind('./event'):
+            x, y = event.find('./cursor').text.split()
+            timestamp = round(float(event.attrib['timestamp']) * Gst.SECOND)
+            events.append((float(x), float(y), timestamp))
+
+        # Cursor positions are relative to the size of the current slide
+        doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
+        slides = []
+        for img in doc.iterfind('./{http://www.w3.org/2000/svg}image'):
+            start = round(float(img.get('in')) * Gst.SECOND)
+            width = int(img.get('width'))
+            height = int(img.get('height'))
+            slides.append((start, width, height))
+
+        for i, (x, y, start) in enumerate(events):
+            # negative positions are used to indicate that no cursor
+            # should be displayed.
+            if x < 0 and y < 0:
+                continue
+
+            # Show cursor until next event or if it is the last event,
+            # the end of recording.
+            if i + 1 < len(events):
+                end = events[i + 1][2]
+            else:
+                end = self.end_time
+
+            # Find the width/height of the slide corresponding to this
+            # point in time
+            while len(slides) > 1 and slides[1][0] <= start:
+                del slides[0]
+            width, height = self._constrain(
+                (slides[0][1], slides[0][2]),
+                (self.slides_width, self.opts.height))
+
+            self._add_clip(layer, dot, start, 0, end - start,
+                           round(width*x - dot_width/2),
+                           round(height*y - dot_height/2), dot_width, dot_height)
 
     def add_deskshare(self):
         doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
