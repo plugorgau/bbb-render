@@ -331,7 +331,7 @@ class Presentation:
                     for s in sorted_shapes:
                         if index < len(shapes_list):
                             s['end'] = sorted_shapes[index]['start']
-                        t.add(Interval(begin=s['start'], end=s['end'], data=[s['shape']]))
+                        t.add(Interval(begin=s['start'], end=s['end'], data=[(shape_id, s['shape'])]))
                         index += 1
 
                 t.split_overlaps()
@@ -341,8 +341,9 @@ class Presentation:
                         '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}"></svg>'.format(img_width,
                                                                                                                   img_height))
                     svg.append(img)
-                    for d in interval.data:
-                        svg.append(d)
+
+                    for shape_id, shape in sorted(interval.data, key=lambda k: k[0]):
+                        svg.append(shape)
 
                     pngpath = os.path.join(self.opts.basedir, '{}-{}.png'.format(img.get('id'), index))
 
