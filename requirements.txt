@@ -1,3 +1,2 @@
 intervaltree
 PyGObject
-CairoSVG

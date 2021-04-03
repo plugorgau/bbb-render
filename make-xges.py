@@ -1,20 +1,26 @@
-#!/usr/sbin/env python3
+#!/usr/bin/python3
 
 import argparse
+import collections
 import os
 import sys
 import xml.etree.ElementTree as ET
 
-import cairosvg
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 gi.require_version('GES', '1.0')
 from gi.repository import GLib, GObject, Gst, GstPbutils, GES
-
 from intervaltree import Interval, IntervalTree
 
+# GStreamer's content detection doesn't work well with ElementTree's
+# automatically assigned namespace prefixes.
 ET.register_namespace("", "http://www.w3.org/2000/svg")
+
+
+SlideInfo = collections.namedtuple('SlideInfo', ['id', 'width', 'height', 'start', 'end'])
+CursorEvent = collections.namedtuple('CursorEvent', ['x', 'y', 'timestamp'])
+
 
 def file_to_uri(path):
     path = os.path.realpath(path)
@@ -43,10 +49,7 @@ class Presentation:
         self.add_credits()
         self.add_webcams()
         self.add_cursor()
-        if self.opts.annotations:
-            self.add_slides_with_annotations()
-        else:
-            self.add_slides()
+        self.add_slides(self.opts.annotations)
         self.add_deskshare()
         self.add_backdrop()
 
@@ -99,8 +102,8 @@ class Presentation:
         # Offset start point by the length of the opening credits
         start += self.opening_length
 
-        clip = layer.add_asset(asset, start, inpoint, duration,
-                               GES.TrackType.UNKNOWN)
+        clip = layer.add_asset_full(asset, start, inpoint, duration,
+                                    GES.TrackType.UNKNOWN)
         for element in clip.find_track_elements(
                 self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
             element.set_child_property("posx", posx)
@@ -170,28 +173,88 @@ class Presentation:
                        self.opts.width - width, 0,
                        width, height)
 
-    def add_slides(self):
+    def add_slides(self, with_annotations):
         layer = self._add_layer('Slides')
         doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
-        for img in doc.iterfind('./{http://www.w3.org/2000/svg}image'):
+        slides = {}
+        for img in doc.iterfind('./{http://www.w3.org/2000/svg}image[@class="slide"]'):
+            info = SlideInfo(
+                id=img.get('id'),
+                width=int(img.get('width')),
+                height=int(img.get('height')),
+                start=round(float(img.get('in')) * Gst.SECOND),
+                end=round(float(img.get('out')) * Gst.SECOND),
+            )
+            slides[info.id] = info
+
+            # Don't bother creating an asset for out of range slides
+            if info.end < self.start_time or info.start > self.end_time:
+                continue
+
             path = img.get('{http://www.w3.org/1999/xlink}href')
             # If this is a "deskshare" slide, don't show anything
             if path.endswith('/deskshare.png'):
-                continue
-
-            start = round(float(img.get('in')) * Gst.SECOND)
-            end = round(float(img.get('out')) * Gst.SECOND)
-
-            # Don't bother creating an asset for out of range slides
-            if end < self.start_time or start > self.end_time:
                 continue
 
             asset = self._get_asset(os.path.join(self.opts.basedir, path))
             width, height = self._constrain(
                 self._get_dimensions(asset),
                 (self.slides_width, self.opts.height))
-            self._add_clip(layer, asset, start, 0, end - start,
+            self._add_clip(layer, asset, info.start, 0, info.end - info.start,
                            0, 0, width, height)
+
+        # If we're not processing annotations, then we're done.
+        if not with_annotations:
+            return
+
+        layer = self._add_layer('Annotations')
+        # Move above the slides layer
+        self.timeline.move_layer(layer, layer.get_priority() - 1)
+        for canvas in doc.iterfind('./{http://www.w3.org/2000/svg}g[@class="canvas"]'):
+            info = slides[canvas.get('image')]
+            t = IntervalTree()
+            for shape in canvas.iterfind('./{http://www.w3.org/2000/svg}g[@class="shape"]'):
+                shape.set('style', shape.get('style').replace(
+                    'visibility:hidden;', ''))
+                timestamp = round(float(shape.get('timestamp')) * Gst.SECOND)
+                undo = round(float(shape.get('undo')) * Gst.SECOND)
+                if undo < 0:
+                    undo = info.end
+
+                # Clip timestamps to slide visibility
+                timestamp = min(max(timestamp, info.start), info.end)
+                undo = min(max(undo, info.start), info.end)
+
+                # Don't bother creating annotations for out of range times
+                if undo < self.start_time or timestamp > self.end_time:
+                    continue
+
+                t.add(Interval(begin=timestamp, end=undo, data=[(shape.get('id'), shape)]))
+
+            t.split_overlaps()
+            t.merge_overlaps(strict=True, data_reducer=lambda a, b: a + b)
+            for index, interval in enumerate(sorted(t)):
+                svg = ET.Element('{http://www.w3.org/2000/svg}svg')
+                svg.set('version', '1.1')
+                svg.set('width', '{}px'.format(info.width))
+                svg.set('height', '{}px'.format(info.height))
+                svg.set('viewBox', '0 0 {} {}'.format(info.width, info.height))
+
+                for shape_id, shape in sorted(interval.data, key=lambda k: k[0]):
+                    svg.append(shape)
+
+                path = os.path.join(
+                    self.opts.basedir,
+                    'annotations-{}-{}.svg'.format(info.id, index))
+                with open(path, 'wb') as fp:
+                    fp.write(ET.tostring(svg, xml_declaration=True))
+
+                asset = self._get_asset(path)
+                width, height = self._constrain(
+                    (info.width, info.height),
+                    (self.slides_width, self.opts.height))
+                self._add_clip(layer, asset, interval.begin, 0, interval.end - interval.begin,
+                               0, 0, width, height)
 
     def add_cursor(self):
         layer = self._add_layer('Cursor')
@@ -203,161 +266,42 @@ class Presentation:
         for event in doc.iterfind('./event'):
             x, y = event.find('./cursor').text.split()
             timestamp = round(float(event.attrib['timestamp']) * Gst.SECOND)
-            events.append((float(x), float(y), timestamp))
+            events.append(CursorEvent(float(x), float(y), timestamp))
 
         # Cursor positions are relative to the size of the current slide
         doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
         slides = []
         for img in doc.iterfind('./{http://www.w3.org/2000/svg}image'):
             start = round(float(img.get('in')) * Gst.SECOND)
+            end = round(float(img.get('out')) * Gst.SECOND)
             width = int(img.get('width'))
             height = int(img.get('height'))
-            slides.append((start, width, height))
+            slides.append(SlideInfo(None, width, height, start, end))
 
-        for i, (x, y, start) in enumerate(events):
+        for i, pos in enumerate(events):
             # negative positions are used to indicate that no cursor
             # should be displayed.
-            if x < 0 and y < 0:
+            if pos.x < 0 and pos.y < 0:
                 continue
 
             # Show cursor until next event or if it is the last event,
             # the end of recording.
             if i + 1 < len(events):
-                end = events[i + 1][2]
+                end = events[i + 1].timestamp
             else:
                 end = self.end_time
 
             # Find the width/height of the slide corresponding to this
             # point in time
-            while len(slides) > 1 and slides[1][0] <= start:
+            while len(slides) > 1 and slides[1].start <= start:
                 del slides[0]
             width, height = self._constrain(
-                (slides[0][1], slides[0][2]),
+                (slides[0].width, slides[0].height),
                 (self.slides_width, self.opts.height))
 
-            self._add_clip(layer, dot, start, 0, end - start,
-                           round(width*x - dot_width/2),
-                           round(height*y - dot_height/2), dot_width, dot_height)
-
-    def add_slides_with_annotations(self):
-
-        def data_reducer(a, b):
-            return a+b
-
-        layer = self._add_layer('Slides')
-
-        doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
-
-        for img in doc.iterfind('./{http://www.w3.org/2000/svg}image'):
-            path = img.get('{http://www.w3.org/1999/xlink}href')
-            img.set('{http://www.w3.org/1999/xlink}href', os.path.join(self.opts.basedir, path))
-            if path.endswith('/deskshare.png'):
-                continue
-
-            img_width = int(img.get('width'))
-            img_height = int(img.get('height'))
-
-            canvas = doc.find('./{{http://www.w3.org/2000/svg}}g[@class="canvas"][@image="{}"]'.format(img.get('id')))
-
-            img_start = round(float(img.get('in')) * Gst.SECOND)
-            img_end = round(float(img.get('out')) * Gst.SECOND)
-
-            t = IntervalTree()
-            t.add(Interval(begin=img_start, end=img_end, data=[]))
-
-            if canvas is None:
-                svg = ET.XML(
-                    '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}"></svg>'.format(img_width,
-                                                                                                              img_height))
-                svg.append(img)
-
-                pngpath = os.path.join(self.opts.basedir, '{}.png'.format(img.get('id')))
-
-                if not os.path.exists(pngpath):
-                    cairosvg.svg2png(bytestring=ET.tostring(svg).decode('utf-8').encode('utf-8'), write_to=pngpath,
-                                     output_width=img_width, output_height=img_height)
-
-                asset = self._get_asset(pngpath)
-                width, height = self._constrain(
-                    self._get_dimensions(asset),
-                    (self.slides_width, self.opts.height))
-                self._add_clip(layer, asset, img_start, 0, img_end - img_start,
-                               0, 0, width, height)
-
-            else:
-                shapes = {}
-                for shape in canvas.iterfind('./{http://www.w3.org/2000/svg}g[@class="shape"]'):
-
-                    shape_style = shape.get('style')
-                    shape.set('style', shape_style.replace('visibility:hidden;', ''))
-
-                    for shape_img in shape.iterfind('./{http://www.w3.org/2000/svg}image'):
-                        print(ET.tostring(shape_img))
-                        shape_img_path = shape_img.get('{http://www.w3.org/1999/xlink}href')
-                        shape_img.set('{http://www.w3.org/1999/xlink}href', os.path.join(self.opts.basedir, shape_img_path))
-
-                    start = img_start
-                    timestamp = shape.get('timestamp')
-                    shape_start = round(float(timestamp) * Gst.SECOND)
-                    if shape_start > img_start:
-                        start = shape_start
-
-                    end = img_end
-                    undo = shape.get('undo')
-                    shape_end = round(float(undo) * Gst.SECOND)
-                    if undo != '-1' and shape_end != 0 and shape_end < end:
-                        end = shape_end
-
-                    if end < start:
-                        continue
-
-                    shape_id = shape.get('shape')
-                    if shape_id in shapes:
-                        shapes[shape_id].append({
-                            'start': start,
-                            'end': end,
-                            'shape': shape
-                        })
-                    else:
-                        shapes[shape_id] = [{
-                            'start': start,
-                            'end': end,
-                            'shape': shape
-                        }]
-
-                for shape_id, shapes_list in shapes.items():
-                    sorted_shapes = sorted(shapes_list, key=lambda k: k['start'])
-                    index = 1
-                    for s in sorted_shapes:
-                        if index < len(shapes_list):
-                            s['end'] = sorted_shapes[index]['start']
-                        t.add(Interval(begin=s['start'], end=s['end'], data=[(shape_id, s['shape'])]))
-                        index += 1
-
-                t.split_overlaps()
-                t.merge_overlaps(data_reducer=data_reducer)
-                for index, interval in enumerate(sorted(t)):
-                    svg = ET.XML(
-                        '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}"></svg>'.format(img_width,
-                                                                                                                  img_height))
-                    svg.append(img)
-
-                    for shape_id, shape in sorted(interval.data, key=lambda k: k[0]):
-                        svg.append(shape)
-
-                    pngpath = os.path.join(self.opts.basedir, '{}-{}.png'.format(img.get('id'), index))
-
-                    if not os.path.exists(pngpath):
-                        cairosvg.svg2png(bytestring=ET.tostring(svg).decode('utf-8').encode('utf-8'), write_to=pngpath,
-                                         output_width=img_width, output_height=img_height)
-
-                    asset = self._get_asset(pngpath)
-                    width, height = self._constrain(
-                        self._get_dimensions(asset),
-                        (self.slides_width, self.opts.height))
-                    self._add_clip(layer, asset, interval.begin, 0, interval.end - interval.begin,
-                                   0, 0, width, height)
-
+            self._add_clip(layer, dot, pos.timestamp, 0, end - pos.timestamp,
+                           round(width*pos.x - dot_width/2),
+                           round(height*pos.y - dot_height/2), dot_width, dot_height)
 
     def add_deskshare(self):
         doc = ET.parse(os.path.join(self.opts.basedir, 'deskshare.xml'))
