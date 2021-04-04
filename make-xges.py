@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import operator
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -11,7 +12,7 @@ gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 gi.require_version('GES', '1.0')
 from gi.repository import GLib, GObject, Gst, GstPbutils, GES
-from intervaltree import Interval, IntervalTree
+from intervaltree import IntervalTree
 
 # GStreamer's content detection doesn't work well with ElementTree's
 # automatically assigned namespace prefixes.
@@ -213,7 +214,7 @@ class Presentation:
         for canvas in doc.iterfind('./{http://www.w3.org/2000/svg}g[@class="canvas"]'):
             info = slides[canvas.get('image')]
             t = IntervalTree()
-            for shape in canvas.iterfind('./{http://www.w3.org/2000/svg}g[@class="shape"]'):
+            for index, shape in enumerate(canvas.iterfind('./{http://www.w3.org/2000/svg}g[@class="shape"]')):
                 shape.set('style', shape.get('style').replace(
                     'visibility:hidden;', ''))
                 timestamp = round(float(shape.get('timestamp')) * Gst.SECOND)
@@ -222,17 +223,17 @@ class Presentation:
                     undo = info.end
 
                 # Clip timestamps to slide visibility
-                timestamp = min(max(timestamp, info.start), info.end)
-                undo = min(max(undo, info.start), info.end)
+                start = min(max(timestamp, info.start), info.end)
+                end = min(max(undo, info.start), info.end)
 
                 # Don't bother creating annotations for out of range times
-                if undo < self.start_time or timestamp > self.end_time:
+                if end < self.start_time or start > self.end_time:
                     continue
 
-                t.add(Interval(begin=timestamp, end=undo, data=[(shape.get('id'), shape)]))
+                t.addi(start, end, [(index, shape)])
 
             t.split_overlaps()
-            t.merge_overlaps(strict=True, data_reducer=lambda a, b: a + b)
+            t.merge_overlaps(strict=True, data_reducer=operator.add)
             for index, interval in enumerate(sorted(t)):
                 svg = ET.Element('{http://www.w3.org/2000/svg}svg')
                 svg.set('version', '1.1')
@@ -240,7 +241,7 @@ class Presentation:
                 svg.set('height', '{}px'.format(info.height))
                 svg.set('viewBox', '0 0 {} {}'.format(info.width, info.height))
 
-                for shape_id, shape in sorted(interval.data, key=lambda k: k[0]):
+                for _, shape in sorted(interval.data):
                     svg.append(shape)
 
                 path = os.path.join(
