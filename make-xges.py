@@ -241,7 +241,14 @@ class Presentation:
                 svg.set('height', '{}px'.format(info.height))
                 svg.set('viewBox', '0 0 {} {}'.format(info.width, info.height))
 
-                for _, shape in sorted(interval.data):
+                # We want to discard all but the last version of each
+                # shape ID, which requires two passes.
+                shapes = sorted(interval.data)
+                shape_index = {}
+                for index, shape in shapes:
+                    shape_index[shape.get('shape')] = index
+                for index, shape in shapes:
+                    if shape_index[shape.get('shape')] != index: continue
                     svg.append(shape)
 
                 path = os.path.join(
