@@ -103,8 +103,8 @@ class Presentation:
         # Offset start point by the length of the opening credits
         start += self.opening_length
 
-        clip = layer.add_asset_full(asset, start, inpoint, duration,
-                                    GES.TrackType.UNKNOWN)
+        clip = layer.add_asset(asset, start, inpoint, duration,
+                               GES.TrackType.UNKNOWN)
         for element in clip.find_track_elements(
                 self.video_track, GES.TrackType.VIDEO, GObject.TYPE_NONE):
             element.set_child_property("posx", posx)
