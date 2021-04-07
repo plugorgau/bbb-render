@@ -17,7 +17,7 @@ Services libraries.  On an Ubuntu 20.04 system, you will need to
 install at least the following:
 
 ```
-sudo apt install python3-gi gir1.2-ges-1.0 ges1.0-tools
+sudo apt install python3-gi gir1.2-ges-1.0 ges1.0-tools python3-intervaltree
 ```
 
 You may also want to install the [Pitivi video
@@ -57,7 +57,7 @@ It takes the following optional parameters to influence the project:
 * `--stretch-webcam` stretches the webcam footage by 33%.  This was added to correct the camera aspect ratio in some of our recordings.
 * `--backdrop=FILE` sets a still image to place behind other elements.  This can be used to fill in the empty space in the frame.
 * `--opening-credits=FILE[:DURATION]` and `--closing-credits=FILE[:DURATION]` will add credits to project.  These can either be videos or still images (which will default to 3 seconds duration).  These options can be repeated to add multiple credits.
-* `--annotations` will add annotations to slides (requires CairoSVG to render SVG).
+* `--annotations` will include whiteboard annotations and red dot cursor to slides.
 
 
 Currently the project includes the following aspects of the BBB
@@ -66,11 +66,11 @@ recording:
 * [x] Slides
 * [x] Screensharing video
 * [x] Webcam video+audio
-* [x] Whiteboard scribbles
+* [x] Mouse cursor
+* [x] Whiteboard scribbles (excluding text)
 
 It does not cover:
 
-* [ ] Mouse cursor
 * [ ] Text chat
 
 The project can be previewed using the `ges-launch-1.0` command line tool:
