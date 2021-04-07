@@ -57,6 +57,8 @@ It takes the following optional parameters to influence the project:
 * `--stretch-webcam` stretches the webcam footage by 33%.  This was added to correct the camera aspect ratio in some of our recordings.
 * `--backdrop=FILE` sets a still image to place behind other elements.  This can be used to fill in the empty space in the frame.
 * `--opening-credits=FILE[:DURATION]` and `--closing-credits=FILE[:DURATION]` will add credits to project.  These can either be videos or still images (which will default to 3 seconds duration).  These options can be repeated to add multiple credits.
+* `--annotations` will add annotations to slides (requires CairoSVG to render SVG).
+
 
 Currently the project includes the following aspects of the BBB
 recording:
@@ -64,11 +66,11 @@ recording:
 * [x] Slides
 * [x] Screensharing video
 * [x] Webcam video+audio
+* [x] Whiteboard scribbles
 
 It does not cover:
 
 * [ ] Mouse cursor
-* [ ] Whiteboard scribbles
 * [ ] Text chat
 
 The project can be previewed using the `ges-launch-1.0` command line tool:
