@@ -176,7 +176,7 @@ class Presentation:
     def _clean_shape(self, shape):
         # Shapes are hidden by default, as the JavaScript player would
         # make the visible as appropriate.
-        shape.set('style', shape.get('style').replace('visibility:hidden;', ''))
+        style = shape.get('style').replace('visibility:hidden;', '')
 
         # Add an SVG <text> fallback to text shapes
         switch = shape.find('./{http://www.w3.org/2000/svg}switch')
@@ -198,9 +198,11 @@ class Presentation:
                 tspan.text = line
                 text.append(tspan)
 
-            shape.set('style', shape.get('style').replace('color:', 'fill:'))
+            style += ';fill:currentcolor'
             shape.remove(switch)
             shape.append(text)
+
+        shape.set('style', style)
 
     def add_slides(self, with_annotations):
         layer = self._add_layer('Slides')
