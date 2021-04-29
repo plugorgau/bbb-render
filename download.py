@@ -11,11 +11,11 @@ import xml.etree.ElementTree as ET
 class Downloader:
 
     def __init__(self, url, outdir):
-        m = re.match(r'^.*/playback/presentation/2\.0/playback.html\?meetingId=(\S+)$', url)
+        m = re.match(r'^.*/playback/presentation/2\.0/playback\.html\?meetingId=(\S+)$', url)
         if m is not None:
             id = m.group(1)
         else:
-            m = re.match(r'.*/playback/presentation/2.3/(\S+)$', url)
+            m = re.match(r'^.*/playback/presentation/2\.3/(\S+)$', url)
             if m is not None:
                 id = m.group(1)
             else:
