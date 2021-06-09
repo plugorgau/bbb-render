@@ -27,68 +27,11 @@ def file_to_uri(path):
     path = os.path.realpath(path)
     return 'file://' + path
 
-#
-# Try to parse a tring like:
-#            ss      (seconds)
-#            ss.dd   (seconds with decimals)
-#         mm:ss      (minutes and seconds)
-#         mm:ss.dd   (minutes and seconds with decimals)
-#      hh:mm:ss      (hours, minutes and seconds)
-#      hh:mm:ss.dd   (hours, minutes and seconds with decimals)
-#   dd:hh:mm:ss      (days,hours, minutes and seconds)
-#   dd:hh:mm:ss.dd   (days,hours, minutes and seconds with decimals)
-#
-def parse_time(raw_time):
-
-    # total amount of seconds
-    seconds = 0.0
-
-    if raw_time is None:
-
-        seconds = None
-
-    else:
-
-        # allow an empty value
-        if raw_time == '':
-            raw_time = '0'
-
-        # seconds should be always 0
-        # minutes should be always 1 ecc.
-        parts = raw_time.split(':')
-        parts.reverse()
-        n = len(parts)
-
-        # seconds (ss) - also float is fine here
-        if( n > 0 ):
-            seconds = float( parts[0] )
-
-        # minutes (mm:ss)
-        if( n > 1 ):
-            seconds += float( parts[1] ) * 60.0
-
-        # hours (hh:mm:ss)
-        if( n > 2 ):
-            seconds += float( parts[2] ) * 3600.0
-
-        # days (dd:hh:mm:ss)
-        if( n > 3 ):
-            seconds += float( parts[3] ) * 86400.0
-
-        # what?
-        if( n > 4 ):
-            raise ValueError('The provided time does not respect the supported formats: SS, MM:SS, HH:MM:SS, DD:HH:MM:SS.')
-
-    return seconds
 
 class Presentation:
 
     def __init__(self, opts):
         self.opts = opts
-
-        self.start = parse_time( opts.start )
-        self.end   = parse_time( opts.end )
-
         self.cam_width = round(opts.width * opts.webcam_size / 100)
         self.slides_width = opts.width - self.cam_width
 
@@ -188,11 +131,11 @@ class Presentation:
                 audio_info.get_sample_rate(), audio_info.get_channels()))
 
         # Set start and end time from options
-        self.start_time = round(self.start * Gst.SECOND)
-        if self.end is None:
+        self.start_time = round(self.opts.start * Gst.SECOND)
+        if self.opts.end is None:
             self.end_time = asset.props.duration
         else:
-            self.end_time = round(self.end * Gst.SECOND)
+            self.end_time = round(self.opts.end * Gst.SECOND)
 
         # Offset for the opening credits
         self.opening_length = 0
@@ -445,11 +388,52 @@ class Presentation:
         self.timeline.save_to_uri(file_to_uri(self.opts.project), None, True)
 
 
+def parse_time(value):
+    """Parse a time interval string into a floating point seconds value.
+
+    Supported formats include:
+               ss      (seconds)
+               ss.dd   (seconds with decimals)
+            mm:ss      (minutes and seconds)
+            mm:ss.dd   (minutes and seconds with decimals)
+         hh:mm:ss      (hours, minutes and seconds)
+         hh:mm:ss.dd   (hours, minutes and seconds with decimals)
+      dd:hh:mm:ss      (days,hours, minutes and seconds)
+      dd:hh:mm:ss.dd   (days,hours, minutes and seconds with decimals)
+    """
+    # allow an empty value
+    if value == '':
+        return 0
+
+    # seconds should be always 0
+    # minutes should be always 1 ecc.
+    parts = value.split(':')
+    if len(parts) > 4:
+        raise ValueError('The provided time does not respect the supported formats: SS, MM:SS, HH:MM:SS, DD:HH:MM:SS.')
+
+    parts.reverse()
+    seconds = float(parts[0])
+
+    # minutes (mm:ss)
+    if len(parts) > 1:
+        seconds += int(parts[1]) * 60
+
+    # hours (hh:mm:ss)
+    if len(parts) > 2:
+        seconds += float(parts[2]) * 3600
+
+    # days (dd:hh:mm:ss)
+    if len(parts) > 3:
+        seconds += float(parts[3]) * 86400
+
+    return seconds
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description='convert a BigBlueButton presentation into a GES project')
-    parser.add_argument('--start', metavar='TIME', type=str, default='0',
+    parser.add_argument('--start', metavar='TIME', type=parse_time, default=0,
                         help='Start point in the recording (seconds, or mm:ss, hh:mm:ss, dd:hh:mm:ss)')
-    parser.add_argument('--end', metavar='TIME', type=str, default=None,
+    parser.add_argument('--end', metavar='TIME', type=parse_time, default=None,
                         help='End point in the recording')
     parser.add_argument('--width', metavar='WIDTH', type=int, default=1920,
                         help='Video width')
