@@ -388,11 +388,52 @@ class Presentation:
         self.timeline.save_to_uri(file_to_uri(self.opts.project), None, True)
 
 
+def parse_time(value):
+    """Parse a time interval string into a floating point seconds value.
+
+    Supported formats include:
+               ss      (seconds)
+               ss.dd   (seconds with decimals)
+            mm:ss      (minutes and seconds)
+            mm:ss.dd   (minutes and seconds with decimals)
+         hh:mm:ss      (hours, minutes and seconds)
+         hh:mm:ss.dd   (hours, minutes and seconds with decimals)
+      dd:hh:mm:ss      (days,hours, minutes and seconds)
+      dd:hh:mm:ss.dd   (days,hours, minutes and seconds with decimals)
+    """
+    # allow an empty value
+    if value == '':
+        return 0
+
+    # seconds should be always 0
+    # minutes should be always 1 ecc.
+    parts = value.split(':')
+    if len(parts) > 4:
+        raise ValueError('The provided time does not respect the supported formats: SS, MM:SS, HH:MM:SS, DD:HH:MM:SS.')
+
+    parts.reverse()
+    seconds = float(parts[0])
+
+    # minutes (mm:ss)
+    if len(parts) > 1:
+        seconds += int(parts[1]) * 60
+
+    # hours (hh:mm:ss)
+    if len(parts) > 2:
+        seconds += float(parts[2]) * 3600
+
+    # days (dd:hh:mm:ss)
+    if len(parts) > 3:
+        seconds += float(parts[3]) * 86400
+
+    return seconds
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description='convert a BigBlueButton presentation into a GES project')
-    parser.add_argument('--start', metavar='SECONDS', type=float, default=0,
-                        help='Seconds to skip from the start of the recording')
-    parser.add_argument('--end', metavar='SECONDS', type=float, default=None,
+    parser.add_argument('--start', metavar='TIME', type=parse_time, default=0,
+                        help='Start point in the recording (seconds, or mm:ss, hh:mm:ss, dd:hh:mm:ss)')
+    parser.add_argument('--end', metavar='TIME', type=parse_time, default=None,
                         help='End point in the recording')
     parser.add_argument('--width', metavar='WIDTH', type=int, default=1920,
                         help='Video width')

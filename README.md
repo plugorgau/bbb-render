@@ -9,7 +9,6 @@ This project provides some scripts to download the assets for a
 recorded presentation, and assemble them into a single video suitable
 for archive or upload to other video hosting sites.
 
-
 ## Prerequisites
 
 The scripts are written in Python, and rely on the GStreamer Editing
@@ -51,7 +50,7 @@ Editing Services project.
 
 It takes the following optional parameters to influence the project:
 
-* `--start=SECONDS` and `--end=SECONDS` can be used to trim footage from the start or end of the recording.  This can be helpful if the recording was started early, or you want to split the recoridng into multiple projects.
+* `--start=TIME` and `--end=TIME` can be used to trim footage from the start or end of the recording.  This can be helpful if the recording was started early, or you want to split the recoridng into multiple projects.
 * `--width=WIDTH` and `--height=HEIGHT` control the dimensions of the video.  The default resolution is 1920x1080.
 * `--webcam-size=PERCENT` controls how much of the frame width will be devoted to the webcam footage.  This defaults to 20%.
 * `--stretch-webcam` stretches the webcam footage by 33%.  This was added to correct the camera aspect ratio in some of our recordings.
@@ -59,6 +58,12 @@ It takes the following optional parameters to influence the project:
 * `--opening-credits=FILE[:DURATION]` and `--closing-credits=FILE[:DURATION]` will add credits to project.  These can either be videos or still images (which will default to 3 seconds duration).  These options can be repeated to add multiple credits.
 * `--annotations` will include whiteboard annotations and red dot cursor to slides.
 
+Some accepted `TIME` formats:
+
+* `ss` seconds (example: 1500 or 1500.3)
+* `mm:ss` minutes and seconds
+* `hh:mm:ss` hours minutes and seconds
+* `dd:hh:mm:ss` days, hours, minutes and seconds
 
 Currently the project includes the following aspects of the BBB
 recording:
@@ -82,7 +87,6 @@ ges-launch-1.0 --load presentation.xges
 It can also be loaded in Pitivi if you want to tweak the project
 before rendering.
 
-
 ## Render Video
 
 If everything looks good, the project can be rendered to a video.  The
@@ -98,3 +102,11 @@ Or alternatively, it can be rendered as WebM:
 ges-launch-1.0 --load presentation.xges -o presentation.webm \
   --format 'video/webm:video/x-vp8:audio/x-vorbis'
 ```
+
+## License
+
+Copyright (c) 2020-2021 [James Henstridge](https://github.com/jhenstridge) and contributors
+
+The project is Free as in freedom software, released under the terms of the MIT License.
+
+See the LICENSE file.
