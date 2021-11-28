@@ -355,7 +355,7 @@ class Presentation:
             width, height = self._constrain(
                 dims, (self.opts.width, self.opts.height))
 
-            self._add_clip(layer, asset, 0, 0, duration,
+            self._add_clip(layer, asset, self.start_time, 0, duration,
                            0, 0, width, height, trim_end=False)
             self.opening_length += duration
 
