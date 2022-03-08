@@ -355,7 +355,7 @@ class Presentation:
             width, height = self._constrain(
                 dims, (self.opts.width, self.opts.height))
 
-            self._add_clip(layer, asset, 0, 0, duration,
+            self._add_clip(layer, asset, self.start_time, 0, duration,
                            0, 0, width, height, trim_end=False)
             self.opening_length += duration
 
@@ -440,7 +440,7 @@ def main(argv):
     parser.add_argument('--height', metavar='HEIGHT', type=int, default=1080,
                         help='Video height')
     parser.add_argument('--webcam-size', metavar='PERCENT', type=int,
-                        default=25, choices=range(100),
+                        default=25, choices=range(101),
                         help='Amount of screen to reserve for camera')
     parser.add_argument('--stretch-webcam', action='store_true',
                         help='Stretch webcam to 16:9 aspect ratio')
