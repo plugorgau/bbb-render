@@ -110,6 +110,7 @@ class Presentation:
             element.set_child_property("posy", posy)
             element.set_child_property("width", width)
             element.set_child_property("height", height)
+        return clip
 
     def set_track_caps(self):
         # Set frame rate and audio rate based on webcam capture
@@ -164,14 +165,18 @@ class Presentation:
         asset = self._get_asset(
             os.path.join(self.opts.basedir, 'video/webcams.webm'))
         dims = self._get_dimensions(asset)
-        if self.opts.stretch_webcam:
+        if self.opts.stretch_webcam or self.opts.crop_webcam:
             dims = (dims[0] * 16/12, dims[1])
         width, height = self._constrain(
             dims, (self.cam_width, self.opts.height))
 
-        self._add_clip(layer, asset, 0, 0, asset.props.duration,
-                       self.opts.width - width, 0,
-                       width, height)
+        clip = self._add_clip(layer, asset, 0, 0, asset.props.duration,
+                              self.opts.width - width, 0,
+                              width, height)
+
+        if self.opts.crop_webcam:
+            effect = GES.Effect.new('aspectratiocrop aspect-ratio=16/9')
+            clip.add(effect)
 
     def add_slides(self, with_annotations):
         layer = self._add_layer('Slides')
@@ -442,6 +447,8 @@ def main(argv):
     parser.add_argument('--webcam-size', metavar='PERCENT', type=int,
                         default=25, choices=range(101),
                         help='Amount of screen to reserve for camera')
+    parser.add_argument('--crop-webcam', action='store_true',
+                        help='Crop webcam to 16:9 aspect ratio')
     parser.add_argument('--stretch-webcam', action='store_true',
                         help='Stretch webcam to 16:9 aspect ratio')
     parser.add_argument('--backdrop', metavar='FILE', type=str, default=None,
