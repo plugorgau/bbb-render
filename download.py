@@ -30,14 +30,18 @@ class Downloader:
         outpath = os.path.join(self.outdir, path)
         os.makedirs(os.path.dirname(outpath), exist_ok=True)
 
-        print(f"Downloading {url}...")
+        print(f"Downloading {url}", end="")
         with open(outpath, 'wb') as fp:
             buf = bytearray(64 * 1024)
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'bbb-video-downloader/1.0')
             resp = urllib.request.urlopen(req)
             content_length = resp.headers['Content-Length']
-            if content_length is not None: content_length = int(content_length)
+            if content_length is not None:
+                content_length = int(content_length)
+                print(f" ({content_length} bytes)...")
+            else:
+                print("...")
             while True:
                 with resp:
                     n = resp.readinto(buf)
