@@ -178,6 +178,37 @@ class Presentation:
             effect = GES.Effect.new('aspectratiocrop aspect-ratio=16/9')
             clip.add(effect)
 
+    def _clean_shape(self, shape):
+        # Shapes are hidden by default, as the JavaScript player would
+        # make the visible as appropriate.
+        style = shape.get('style').replace('visibility:hidden;', '')
+
+        # Add an SVG <text> fallback to text shapes
+        switch = shape.find('./{http://www.w3.org/2000/svg}switch')
+        if switch is not None:
+            fo = switch.find('./{http://www.w3.org/2000/svg}foreignObject')
+            p = fo.find('./{http://www.w3.org/1999/xhtml}p')
+            # <p> tag contains lines separated by <br/> elements
+            lines = [p.text]
+            for br in p.iterfind('./{http://www.w3.org/1999/xhtml}br'):
+                lines.append(br.tail)
+
+            text = ET.Element('{http://www.w3.org/2000/svg}text')
+            text.set('x', fo.get('x'))
+            text.set('y', fo.get('y'))
+            for line in lines:
+                tspan = ET.Element('{http://www.w3.org/2000/svg}tspan')
+                tspan.set('x', fo.get('x'))
+                tspan.set('dy', '1em')
+                tspan.text = line
+                text.append(tspan)
+
+            style += ';fill:currentcolor'
+            shape.remove(switch)
+            shape.append(text)
+
+        shape.set('style', style)
+
     def add_slides(self, with_annotations):
         layer = self._add_layer('Slides')
         doc = ET.parse(os.path.join(self.opts.basedir, 'shapes.svg'))
@@ -257,8 +288,7 @@ class Presentation:
             info = slides[canvas.get('image')]
             t = IntervalTree()
             for index, shape in enumerate(canvas.iterfind('./{http://www.w3.org/2000/svg}g[@class="shape"]')):
-                shape.set('style', shape.get('style').replace(
-                    'visibility:hidden;', ''))
+                self._clean_shape(shape)
                 timestamp = round(float(shape.get('timestamp')) * Gst.SECOND)
                 undo = round(float(shape.get('undo')) * Gst.SECOND)
                 if undo < 0:
