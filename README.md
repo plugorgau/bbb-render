@@ -57,6 +57,7 @@ It takes the following optional parameters to influence the project:
 * `--backdrop=FILE` sets a still image to place behind other elements.  This can be used to fill in the empty space in the frame.
 * `--opening-credits=FILE[:DURATION]` and `--closing-credits=FILE[:DURATION]` will add credits to project.  These can either be videos or still images (which will default to 3 seconds duration).  These options can be repeated to add multiple credits.
 * `--annotations` will include whiteboard annotations and red dot cursor to slides.
+* `--fullscreen` shows slides or screenshare in fullscreen and webcam over it.
 
 Some accepted `TIME` formats:
 
