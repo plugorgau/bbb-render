@@ -33,7 +33,7 @@ class Presentation:
     def __init__(self, opts):
         self.opts = opts
         self.cam_width = round(opts.width * opts.webcam_size / 100)
-        self.slides_width = opts.width - self.cam_width
+        self.slides_width = opts.width if self.opts.fullscreen else opts.width - self.cam_width
 
         self.timeline = GES.Timeline.new_audio_video()
 
@@ -461,6 +461,8 @@ def main(argv):
                         help='File to use as closing credits (may be repeated)')
     parser.add_argument('--annotations', action='store_true', default=False,
                         help='Add annotations to slides (requires inkscape)')
+    parser.add_argument('--fullscreen', action='store_true', default=False,
+                        help='Show slides/screenshare in fullscreen and webcam over it')
     parser.add_argument('basedir', metavar='PRESENTATION-DIR', type=str,
                         help='directory containing BBB presentation assets')
     parser.add_argument('project', metavar='OUTPUT', type=str,
